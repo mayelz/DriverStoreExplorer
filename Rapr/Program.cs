@@ -1,10 +1,12 @@
 ﻿using System;
 using System.Configuration;
+using System.Diagnostics;
 using System.IO;
 using System.Reflection;
-using System.Runtime.CompilerServices;
 using System.Security;
 using System.Windows.Forms;
+
+using Rapr.Lang;
 
 namespace Rapr
 {
@@ -64,31 +66,49 @@ namespace Rapr
         [STAThread]
         public static void Main()
         {
-            AddEnvironmentPaths(@"C:\Windows\System32\CompatTel");
-            AppDomain.CurrentDomain.AssemblyResolve += ResolveEventHandler;
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
 
-            if (Properties.Settings.Default.UpgradeRequired)
-            {
-                Properties.Settings.Default.Upgrade();
-                Properties.Settings.Default.UpgradeRequired = false;
-                Properties.Settings.Default.Save();
+            Trace.AutoFlush = true;
+            Trace.IndentSize = 4;
+            Trace.Listeners.Add(new TextFileTraceListener());
 
-                try
+            AddEnvironmentPaths(@"C:\Windows\System32\CompatTel");
+            AppDomain.CurrentDomain.AssemblyResolve += ResolveEventHandler;
+
+            try
+            {
+                if (Properties.Settings.Default.UpgradeRequired)
                 {
-                    CleanUpOldConfig();
+                    Properties.Settings.Default.Upgrade();
+                    Properties.Settings.Default.UpgradeRequired = false;
+                    Properties.Settings.Default.Save();
+
+                    try
+                    {
+                        CleanUpOldConfig();
+                    }
+                    catch (Exception e) when (
+                        e is SecurityException
+                        || e is IOException)
+                    {
+                        Trace.TraceError(e.ToString());
+                    }
                 }
-                catch (Exception e) when (
-                    e is SecurityException
-                    || e is IOException)
+
+                using (DSEForm mainForm = new DSEForm())
                 {
+                    Application.Run(mainForm);
                 }
             }
-
-            using (DSEForm mainForm = new DSEForm())
+            catch (ConfigurationException e)
             {
-                Application.Run(mainForm);
+                Trace.TraceError(e.ToString());
+                MessageBox.Show(
+                    e.Message,
+                    Language.Product_Name,
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
             }
         }
     }
